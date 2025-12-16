@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+  xmlns:db="http://www.mulesoft.org/schema/mule/db"
+  xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+  xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+      http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+      http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+  <!-- GET /cards - Business Logic Flow -->
+  <flow name="get-cards-business-logic" doc:name="get-cards-business-logic">
+    <try doc:name="Try">
+      <db:select doc:name="Select Cards" config-ref="Database_Config">
+        <db:sql><![CDATA[SELECT 
+  id, card_number, card_type, card_network, customer_id, account_id,
+  cardholder_name, expiration_date, status, credit_limit, available_credit,
+  daily_purchase_limit, daily_atm_withdrawal_limit,
+  international_transactions_enabled, online_transactions_enabled,
+  issued_date, created_at, updated_at
+FROM cards
+WHERE 
+  (:customerId IS NULL OR customer_id::text = :customerId)
+  AND (:cardNumber IS NULL OR card_number = :cardNumber)
+  AND (:status IS NULL OR status = :status)
+ORDER BY created_at DESC
+LIMIT (:limit)::integer OFFSET (:offset)::integer]]></db:sql>
+        <db:input-parameters><![CDATA[#[payload]]]></db:input-parameters>
+      </db:select>
+
+      <ee:transform doc:name="Transform to Card Response">
+        <ee:message>
+          <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload map ((card) -> {
+  id: card.id,
+  cardNumber: card.card_number,
+  cardType: card.card_type,
+  cardNetwork: card.card_network,
+  customerId: card.customer_id,
+  accountId: card.account_id,
+  cardholderName: card.cardholder_name,
+  expirationDate: card.expiration_date,
+  status: card.status,
+  creditLimit: card.credit_limit,
+  availableCredit: card.available_credit,
+  controls: {
+    dailyPurchaseLimit: card.daily_purchase_limit,
+    dailyATMWithdrawalLimit: card.daily_atm_withdrawal_limit,
+    internationalTransactionsEnabled: card.international_transactions_enabled,
+    onlineTransactionsEnabled: card.online_transactions_enabled
+  },
+  issuedDate: card.issued_date,
+  createdAt: card.created_at,
+  updatedAt: card.updated_at
+})]]></ee:set-payload>
+        </ee:message>
+      </ee:transform>
+
+      <http:response statusCode="200" doc:name="HTTP Response"/>
+      
+      <error-handler>
+        <on-error-propagate type="DB:QUERY_EXECUTION,DB:CONNECTIVITY" enableNotifications="true" logException="true" doc:name="Database Error">
+          <ee:transform doc:name="Transform Error">
+            <ee:message>
+              <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  error: {
+    code: "DATABASE_ERROR",
+    message: "An error occurred while querying the database",
+    timestamp: now()
+  }
+}]]></ee:set-payload>
+            </ee:message>
+          </ee:transform>
+          <http:response statusCode="500" doc:name="HTTP Response"/>
+        </on-error-propagate>
+      </error-handler>
+    </try>
+  </flow>
+
+  <!-- POST /cards - Business Logic Flow -->
+  <flow name="create-card-business-logic" doc:name="create-card-business-logic">
+    <ee:transform doc:name="Transform Request to DB Format">
+      <ee:message>
+        <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var controls = payload.controls default {}
+---
+{
+  card_number: payload.cardNumber,
+  card_type: payload.cardType,
+  card_network: payload.cardNetwork default null,
+  customer_id: payload.customerId,
+  account_id: payload.accountId default null,
+  cardholder_name: payload.cardholderName default null,
+  expiration_date: payload.expirationDate default null,
+  status: payload.status default 'Active',
+  credit_limit: payload.creditLimit default null,
+  available_credit: payload.availableCredit default payload.creditLimit default null,
+  daily_purchase_limit: controls.dailyPurchaseLimit default null,
+  daily_atm_withdrawal_limit: controls.dailyATMWithdrawalLimit default null,
+  international_transactions_enabled: controls.internationalTransactionsEnabled default true,
+  online_transactions_enabled: controls.onlineTransactionsEnabled default true,
+  issued_date: payload.issuedDate default null
+}]]></ee:set-payload>
+      </ee:message>
+    </ee:transform>
+
+    <try doc:name="Try">
+      <db:insert doc:name="Insert Card" config-ref="Database_Config">
+        <db:sql><![CDATA[INSERT INTO cards (
+  card_number, card_type, card_network, customer_id, account_id,
+  cardholder_name, expiration_date, status, credit_limit, available_credit,
+  daily_purchase_limit, daily_atm_withdrawal_limit,
+  international_transactions_enabled, online_transactions_enabled,
+  issued_date, created_at, updated_at
+) VALUES (
+  :card_number, :card_type, :card_network, :customer_id, :account_id,
+  :cardholder_name, :expiration_date, :status, :credit_limit, :available_credit,
+  :daily_purchase_limit, :daily_atm_withdrawal_limit,
+  :international_transactions_enabled, :online_transactions_enabled,
+  :issued_date, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+)
+RETURNING id, card_number, card_type, card_network, customer_id, account_id,
+  cardholder_name, expiration_date, status, credit_limit, available_credit,
+  daily_purchase_limit, daily_atm_withdrawal_limit,
+  international_transactions_enabled, online_transactions_enabled,
+  issued_date, created_at, updated_at]]></db:sql>
+        <db:input-parameters><![CDATA[#[payload]]]></db:input-parameters>
+      </db:insert>
+
+      <ee:transform doc:name="Transform Response">
+        <ee:message>
+          <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+var card = payload[0]
+---
+{
+  id: card.id,
+  cardNumber: card.card_number,
+  cardType: card.card_type,
+  cardNetwork: card.card_network,
+  customerId: card.customer_id,
+  accountId: card.account_id,
+  cardholderName: card.cardholder_name,
+  expirationDate: card.expiration_date,
+  status: card.status,
+  creditLimit: card.credit_limit,
+  availableCredit: card.available_credit,
+  controls: {
+    dailyPurchaseLimit: card.daily_purchase_limit,
+    dailyATMWithdrawalLimit: card.daily_atm_withdrawal_limit,
+    internationalTransactionsEnabled: card.international_transactions_enabled,
+    onlineTransactionsEnabled: card.online_transactions_enabled
+  },
+  issuedDate: card.issued_date,
+  createdAt: card.created_at,
+  updatedAt: card.updated_at
+}]]></ee:set-payload>
+        </ee:message>
+      </ee:transform>
+
+      <http:response statusCode="201" doc:name="HTTP Response"/>
+      
+      <error-handler>
+        <on-error-propagate type="DB:QUERY_EXECUTION,DB:CONNECTIVITY" enableNotifications="true" logException="true" doc:name="Database Error">
+          <ee:transform doc:name="Transform Error">
+            <ee:message>
+              <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  error: {
+    code: "DATABASE_ERROR",
+    message: "An error occurred while creating the card",
+    timestamp: now()
+  }
+}]]></ee:set-payload>
+            </ee:message>
+          </ee:transform>
+          <http:response statusCode="500" doc:name="HTTP Response"/>
+        </on-error-propagate>
+      </error-handler>
+    </try>
+  </flow>
+
+  <!-- GET /cards/{cardId} - Business Logic Flow -->
+  <flow name="get-card-by-id-business-logic" doc:name="get-card-by-id-business-logic">
+    <try doc:name="Try">
+      <db:select doc:name="Select Card by ID" config-ref="Database_Config">
+        <db:sql><![CDATA[SELECT 
+  id, card_number, card_type, card_network, customer_id, account_id,
+  cardholder_name, expiration_date, status, credit_limit, available_credit,
+  daily_purchase_limit, daily_atm_withdrawal_limit,
+  international_transactions_enabled, online_transactions_enabled,
+  issued_date, created_at, updated_at
+FROM cards
+WHERE id = :cardId]]></db:sql>
+        <db:input-parameters><![CDATA[#[{cardId: vars.cardId}]]]></db:input-parameters>
+      </db:select>
+
+      <choice doc:name="Card Found?">
+        <when expression="#[sizeOf(payload) > 0]">
+          <ee:transform doc:name="Transform Response">
+            <ee:message>
+              <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+var card = payload[0]
+---
+{
+  id: card.id,
+  cardNumber: card.card_number,
+  cardType: card.card_type,
+  cardNetwork: card.card_network,
+  customerId: card.customer_id,
+  accountId: card.account_id,
+  cardholderName: card.cardholder_name,
+  expirationDate: card.expiration_date,
+  status: card.status,
+  creditLimit: card.credit_limit,
+  availableCredit: card.available_credit,
+  controls: {
+    dailyPurchaseLimit: card.daily_purchase_limit,
+    dailyATMWithdrawalLimit: card.daily_atm_withdrawal_limit,
+    internationalTransactionsEnabled: card.international_transactions_enabled,
+    onlineTransactionsEnabled: card.online_transactions_enabled
+  },
+  issuedDate: card.issued_date,
+  createdAt: card.created_at,
+  updatedAt: card.updated_at
+}]]></ee:set-payload>
+            </ee:message>
+          </ee:transform>
+          <http:response statusCode="200" doc:name="HTTP Response"/>
+        </when>
+        <otherwise>
+          <ee:transform doc:name="Error Response">
+            <ee:message>
+              <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  error: {
+    code: "NOT_FOUND",
+    message: "Card not found",
+    timestamp: now()
+  }
+}]]></ee:set-payload>
+            </ee:message>
+          </ee:transform>
+          <http:response statusCode="404" doc:name="HTTP Response"/>
+        </otherwise>
+      </choice>
+      
+      <error-handler>
+        <on-error-propagate type="DB:QUERY_EXECUTION,DB:CONNECTIVITY" enableNotifications="true" logException="true" doc:name="Database Error">
+          <ee:transform doc:name="Transform Error">
+            <ee:message>
+              <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  error: {
+    code: "DATABASE_ERROR",
+    message: "An error occurred while querying the database",
+    timestamp: now()
+  }
+}]]></ee:set-payload>
+            </ee:message>
+          </ee:transform>
+          <http:response statusCode="500" doc:name="HTTP Response"/>
+        </on-error-propagate>
+      </error-handler>
+    </try>
+  </flow>
+
+  <!-- PUT /cards/{cardId} - Business Logic Flow -->
+  <flow name="update-card-business-logic" doc:name="update-card-business-logic">
+    <ee:transform doc:name="Transform Request to DB Format">
+      <ee:message>
+        <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+var controls = payload.controls default {}
+---
+{
+  cardId: vars.cardId,
+  card_number: payload.cardNumber default null,
+  card_type: payload.cardType default null,
+  card_network: payload.cardNetwork default null,
+  customer_id: payload.customerId default null,
+  account_id: payload.accountId default null,
+  cardholder_name: payload.cardholderName default null,
+  expiration_date: payload.expirationDate default null,
+  status: payload.status default null,
+  credit_limit: payload.creditLimit default null,
+  available_credit: payload.availableCredit default null,
+  daily_purchase_limit: controls.dailyPurchaseLimit default null,
+  daily_atm_withdrawal_limit: controls.dailyATMWithdrawalLimit default null,
+  international_transactions_enabled: controls.internationalTransactionsEnabled default null,
+  online_transactions_enabled: controls.onlineTransactionsEnabled default null,
+  issued_date: payload.issuedDate default null
+}]]></ee:set-payload>
+      </ee:message>
+    </ee:transform>
+
+    <try doc:name="Try">
+      <db:update doc:name="Update Card" config-ref="Database_Config">
+        <db:sql><![CDATA[UPDATE cards SET
+  card_number = COALESCE(:card_number, card_number),
+  card_type = COALESCE(:card_type, card_type),
+  card_network = COALESCE(:card_network, card_network),
+  customer_id = COALESCE(:customer_id, customer_id),
+  account_id = COALESCE(:account_id, account_id),
+  cardholder_name = COALESCE(:cardholder_name, cardholder_name),
+  expiration_date = COALESCE(:expiration_date, expiration_date),
+  status = COALESCE(:status, status),
+  credit_limit = COALESCE(:credit_limit, credit_limit),
+  available_credit = COALESCE(:available_credit, available_credit),
+  daily_purchase_limit = COALESCE(:daily_purchase_limit, daily_purchase_limit),
+  daily_atm_withdrawal_limit = COALESCE(:daily_atm_withdrawal_limit, daily_atm_withdrawal_limit),
+  international_transactions_enabled = COALESCE(:international_transactions_enabled, international_transactions_enabled),
+  online_transactions_enabled = COALESCE(:online_transactions_enabled, online_transactions_enabled),
+  issued_date = COALESCE(:issued_date, issued_date),
+  updated_at = CURRENT_TIMESTAMP
+WHERE id = :cardId
+RETURNING id, card_number, card_type, card_network, customer_id, account_id,
+  cardholder_name, expiration_date, status, credit_limit, available_credit,
+  daily_purchase_limit, daily_atm_withdrawal_limit,
+  international_transactions_enabled, online_transactions_enabled,
+  issued_date, created_at, updated_at]]></db:sql>
+        <db:input-parameters><![CDATA[#[payload]]]></db:input-parameters>
+      </db:update>
+
+      <choice doc:name="Update Successful?">
+        <when expression="#[sizeOf(payload) > 0]">
+          <ee:transform doc:name="Transform Response">
+            <ee:message>
+              <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+var card = payload[0]
+---
+{
+  id: card.id,
+  cardNumber: card.card_number,
+  cardType: card.card_type,
+  cardNetwork: card.card_network,
+  customerId: card.customer_id,
+  accountId: card.account_id,
+  cardholderName: card.cardholder_name,
+  expirationDate: card.expiration_date,
+  status: card.status,
+  creditLimit: card.credit_limit,
+  availableCredit: card.available_credit,
+  controls: {
+    dailyPurchaseLimit: card.daily_purchase_limit,
+    dailyATMWithdrawalLimit: card.daily_atm_withdrawal_limit,
+    internationalTransactionsEnabled: card.international_transactions_enabled,
+    onlineTransactionsEnabled: card.online_transactions_enabled
+  },
+  issuedDate: card.issued_date,
+  createdAt: card.created_at,
+  updatedAt: card.updated_at
+}]]></ee:set-payload>
+            </ee:message>
+          </ee:transform>
+          <http:response statusCode="200" doc:name="HTTP Response"/>
+        </when>
+        <otherwise>
+          <ee:transform doc:name="Error Response">
+            <ee:message>
+              <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  error: {
+    code: "NOT_FOUND",
+    message: "Card not found",
+    timestamp: now()
+  }
+}]]></ee:set-payload>
+            </ee:message>
+          </ee:transform>
+          <http:response statusCode="404" doc:name="HTTP Response"/>
+        </otherwise>
+      </choice>
+      
+      <error-handler>
+        <on-error-propagate type="DB:QUERY_EXECUTION,DB:CONNECTIVITY" enableNotifications="true" logException="true" doc:name="Database Error">
+          <ee:transform doc:name="Transform Error">
+            <ee:message>
+              <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  error: {
+    code: "DATABASE_ERROR",
+    message: "An error occurred while updating the card",
+    timestamp: now()
+  }
+}]]></ee:set-payload>
+            </ee:message>
+          </ee:transform>
+          <http:response statusCode="500" doc:name="HTTP Response"/>
+        </on-error-propagate>
+      </error-handler>
+    </try>
+  </flow>
+
+</mule>

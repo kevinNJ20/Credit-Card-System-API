@@ -1,0 +1,127 @@
+#%RAML 1.0
+title: Credit Card System API
+version: 1.0.0
+baseUri: http://localhost:8081/api/creditcards
+mediaType: application/json
+
+documentation:
+  - title: Overview
+    content: API système pour gérer les cartes de crédit
+
+types:
+  FinancialCard:
+    type: object
+    properties:
+      id?: string
+      cardNumber: string
+      cardType: string
+      cardNetwork?: string
+      customerId: string
+      accountId?: string
+      cardholderName?: string
+      expirationDate?: date-only
+      status?: string
+      creditLimit?: number
+      availableCredit?: number
+      controls?:
+        type: object
+        properties:
+          dailyPurchaseLimit?: number
+          dailyATMWithdrawalLimit?: number
+          internationalTransactionsEnabled?: boolean
+          onlineTransactionsEnabled?: boolean
+  ErrorResponse:
+    type: object
+    properties:
+      error:
+        type: object
+        properties:
+          code: string
+          message: string
+
+traits:
+  hasQueryParam:
+    queryParameters:
+      limit:
+        type: integer
+        required: false
+        default: 100
+      offset:
+        type: integer
+        required: false
+        default: 0
+
+/cards:
+  displayName: Credit Cards
+  description: Opérations sur les cartes de crédit
+  
+  get:
+    displayName: Get Credit Cards
+    is: [hasQueryParam]
+    queryParameters:
+      customerId:
+        type: string
+        required: false
+      cardNumber:
+        type: string
+        required: false
+      status:
+        type: string
+        required: false
+    responses:
+      200:
+        body:
+          application/json:
+            type: FinancialCard[]
+      400:
+        body:
+          application/json:
+            type: ErrorResponse
+
+  post:
+    displayName: Create Credit Card
+    body:
+      application/json:
+        type: FinancialCard
+    responses:
+      201:
+        body:
+          application/json:
+            type: FinancialCard
+      400:
+        body:
+          application/json:
+            type: ErrorResponse
+
+  /{cardId}:
+    displayName: Card by ID
+    uriParameters:
+      cardId:
+        type: string
+    
+    get:
+      displayName: Get Card by ID
+      responses:
+        200:
+          body:
+            application/json:
+              type: FinancialCard
+        404:
+          body:
+            application/json:
+              type: ErrorResponse
+    
+    put:
+      displayName: Update Card
+      body:
+        application/json:
+          type: FinancialCard
+      responses:
+        200:
+          body:
+            application/json:
+              type: FinancialCard
+        404:
+          body:
+            application/json:
+              type: ErrorResponse

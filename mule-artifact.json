@@ -1,0 +1,7 @@
+{
+  "name": "credit-card-system-api",
+  "minMuleVersion": "4.10.0",
+  "javaSpecificationVersions": [
+    "17"
+  ]
+}
