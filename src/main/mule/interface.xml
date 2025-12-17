@@ -1,30 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mule xmlns:apikit="http://www.mulesoft.org/schema/mule/apikit"
-      xmlns:http="http://www.mulesoft.org/schema/mule/http"
-      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
-      xmlns="http://www.mulesoft.org/schema/mule/core"
-      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
-      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-      xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
-      http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
-      http://www.mulesoft.org/schema/mule/apikit http://www.mulesoft.org/schema/mule/apikit/current/mule-apikit.xsd
-      http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core https://www.mulesoft.org/schema/mule/core/current/mule.xsd
+      http://www.mulesoft.org/schema/mule/http https://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+      http://www.mulesoft.org/schema/mule/ee/core https://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
 
-  <!-- APIkit Router Configuration -->
-  <apikit:config name="credit-card-system-api-config" 
-                  raml="credit-card-system-api.raml" 
-                  outboundHeadersMapName="outboundHeaders" 
-                  httpStatusVarName="httpStatus"/>
-
-  <!-- Main HTTP Listener with APIkit Router -->
+  <!-- Main HTTP Listener with manual routing -->
   <flow name="main">
-    <http:listener config-ref="HTTP_Listener_config" path="/api/*" doc:name="HTTP Listener"/>
-    <apikit:router config-ref="credit-card-system-api-config" doc:name="APIkit Router"/>
-    <error-handler>
-      <on-error-propagate type="APIKIT:NOT_FOUND" enableNotifications="true" logException="true" doc:name="On Error Propagate">
-        <ee:transform doc:name="Transform Error Response">
+    <http:listener config-ref="HTTP_Listener_config" path="/api/*" doc:name="HTTP Listener">
+      <http:response statusCode="#[vars.httpStatus default 200]" />
+      <http:error-response statusCode="#[vars.httpStatus default 500]" />
+    </http:listener>
+    <choice doc:name="Route Request">
+      <when expression="#[attributes.method == 'GET' and attributes.requestPath == '/api/cards']">
+        <flow-ref name="get-cards-interface" doc:name="GET /cards" />
+      </when>
+      <when expression="#[attributes.method == 'POST' and attributes.requestPath == '/api/cards']">
+        <flow-ref name="post-cards-interface" doc:name="POST /cards" />
+      </when>
+      <when expression="#[attributes.method == 'GET' and attributes.requestPath matches '^/api/cards/[^/]+$']">
+        <set-variable variableName="cardId" value="#[(attributes.requestPath splitBy '/')[3]]" doc:name="Set Card ID" />
+        <flow-ref name="get-card-by-id-business-logic" doc:name="get-card-by-id-business-logic" />
+      </when>
+      <when expression="#[attributes.method == 'PUT' and attributes.requestPath matches '^/api/cards/[^/]+$']">
+        <set-variable variableName="cardId" value="#[(attributes.requestPath splitBy '/')[3]]" doc:name="Set Card ID" />
+        <flow-ref name="update-card-business-logic" doc:name="update-card-business-logic" />
+      </when>
+      <otherwise>
+        <ee:transform doc:name="Not Found Response">
           <ee:message>
-            <ee:set-payload><![CDATA[%dw 2.0
+            <ee:set-payload>
+              <![CDATA[%dw 2.0
 output application/json
 ---
 {
@@ -33,87 +37,42 @@ output application/json
     message: "Resource not found",
     timestamp: now()
   }
-}]]></ee:set-payload>
+}]]>
+            </ee:set-payload>
           </ee:message>
         </ee:transform>
-        <http:response statusCode="404" doc:name="HTTP Response"/>
-      </on-error-propagate>
-      <on-error-propagate type="APIKIT:BAD_REQUEST" enableNotifications="true" logException="true" doc:name="On Error Propagate">
+        <set-variable variableName="httpStatus" value="404" doc:name="Set Status 404" />
+      </otherwise>
+    </choice>
+    <error-handler>
+      <on-error-propagate enableNotifications="true" logException="true" doc:name="Generic Error">
         <ee:transform doc:name="Transform Error Response">
           <ee:message>
-            <ee:set-payload><![CDATA[%dw 2.0
+            <ee:set-payload>
+              <![CDATA[%dw 2.0
 output application/json
 ---
 {
   error: {
-    code: "BAD_REQUEST",
-    message: error.description default "Bad request",
+    code: "INTERNAL_ERROR",
+    message: (error.description default error.message) default "Internal server error",
     timestamp: now()
   }
-}]]></ee:set-payload>
+}]]>
+            </ee:set-payload>
           </ee:message>
         </ee:transform>
-        <http:response statusCode="400" doc:name="HTTP Response"/>
-      </on-error-propagate>
-      <on-error-propagate type="APIKIT:NOT_ACCEPTABLE" enableNotifications="true" logException="true" doc:name="On Error Propagate">
-        <ee:transform doc:name="Transform Error Response">
-          <ee:message>
-            <ee:set-payload><![CDATA[%dw 2.0
-output application/json
----
-{
-  error: {
-    code: "NOT_ACCEPTABLE",
-    message: "Content type not acceptable",
-    timestamp: now()
-  }
-}]]></ee:set-payload>
-          </ee:message>
-        </ee:transform>
-        <http:response statusCode="406" doc:name="HTTP Response"/>
-      </on-error-propagate>
-      <on-error-propagate type="APIKIT:UNSUPPORTED_MEDIA_TYPE" enableNotifications="true" logException="true" doc:name="On Error Propagate">
-        <ee:transform doc:name="Transform Error Response">
-          <ee:message>
-            <ee:set-payload><![CDATA[%dw 2.0
-output application/json
----
-{
-  error: {
-    code: "UNSUPPORTED_MEDIA_TYPE",
-    message: "Unsupported media type",
-    timestamp: now()
-  }
-}]]></ee:set-payload>
-          </ee:message>
-        </ee:transform>
-        <http:response statusCode="415" doc:name="HTTP Response"/>
-      </on-error-propagate>
-      <on-error-propagate type="APIKIT:METHOD_NOT_ALLOWED" enableNotifications="true" logException="true" doc:name="On Error Propagate">
-        <ee:transform doc:name="Transform Error Response">
-          <ee:message>
-            <ee:set-payload><![CDATA[%dw 2.0
-output application/json
----
-{
-  error: {
-    code: "METHOD_NOT_ALLOWED",
-    message: "Method not allowed",
-    timestamp: now()
-  }
-}]]></ee:set-payload>
-          </ee:message>
-        </ee:transform>
-        <http:response statusCode="405" doc:name="HTTP Response"/>
+        <set-variable variableName="httpStatus" value="500" doc:name="Set Status 500" />
       </on-error-propagate>
     </error-handler>
   </flow>
 
   <!-- GET /cards -->
-  <flow name="get:\cards:credit-card-system-api-config">
+  <flow name="get-cards-interface">
     <ee:transform doc:name="Build Query Parameters">
       <ee:message>
-        <ee:set-payload><![CDATA[%dw 2.0
+        <ee:set-payload>
+          <![CDATA[%dw 2.0
 output application/java
 ---
 {
@@ -122,28 +81,28 @@ output application/java
   status: attributes.queryParams.status default null,
   limit: (attributes.queryParams.limit as Number default 100) as String,
   offset: (attributes.queryParams.offset as Number default 0) as String
-}]]></ee:set-payload>
+}]]>
+        </ee:set-payload>
       </ee:message>
     </ee:transform>
-    <flow-ref name="get-cards-business-logic" doc:name="get-cards-business-logic"/>
+    <flow-ref name="get-cards-business-logic" doc:name="get-cards-business-logic" />
   </flow>
 
   <!-- POST /cards -->
-  <flow name="post:\cards:credit-card-system-api-config">
-    <flow-ref name="create-card-business-logic" doc:name="create-card-business-logic"/>
+  <flow name="post-cards-interface">
+    <flow-ref name="create-card-business-logic" doc:name="create-card-business-logic" />
   </flow>
 
   <!-- GET /cards/{cardId} -->
-  <flow name="get:\cards\{cardId}:credit-card-system-api-config">
-    <set-variable value="#[attributes.uriParams.cardId]" variableName="cardId" doc:name="Set Card ID"/>
-    <flow-ref name="get-card-by-id-business-logic" doc:name="get-card-by-id-business-logic"/>
+  <flow name="get-card-interface">
+    <set-variable value="#[attributes.uriParams.cardId]" variableName="cardId" doc:name="Set Card ID" />
+    <flow-ref name="get-card-by-id-business-logic" doc:name="get-card-by-id-business-logic" />
   </flow>
 
   <!-- PUT /cards/{cardId} -->
-  <flow name="put:\cards\{cardId}:credit-card-system-api-config">
-    <set-variable value="#[attributes.uriParams.cardId]" variableName="cardId" doc:name="Set Card ID"/>
-    <flow-ref name="update-card-business-logic" doc:name="update-card-business-logic"/>
+  <flow name="put-card-interface">
+    <set-variable value="#[attributes.uriParams.cardId]" variableName="cardId" doc:name="Set Card ID" />
+    <flow-ref name="update-card-business-logic" doc:name="update-card-business-logic" />
   </flow>
 
 </mule>
-
