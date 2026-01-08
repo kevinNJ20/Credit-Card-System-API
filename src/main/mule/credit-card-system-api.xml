@@ -7,26 +7,38 @@
   <!-- GET /cards - Business Logic Flow -->
   <flow name="get-cards-business-logic" doc:name="get-cards-business-logic">
     <try doc:name="Try">
-      <db:select doc:name="Select Cards" config-ref="Database_Config">
-        <db:sql>
-          <![CDATA[SELECT 
-  id, card_number, card_type, card_network, customer_id, account_id,
-  cardholder_name, expiration_date, status, credit_limit, available_credit,
-  daily_purchase_limit, daily_atm_withdrawal_limit,
-  international_transactions_enabled, online_transactions_enabled,
-  issued_date, created_at, updated_at
-FROM cards
-WHERE 
-  (:customerId IS NULL OR customer_id::text = :customerId)
-  AND (:cardNumber IS NULL OR card_number = :cardNumber)
-  AND (:status IS NULL OR status = :status)
-ORDER BY created_at DESC
-LIMIT (:limit)::integer OFFSET (:offset)::integer]]>
-        </db:sql>
-        <db:input-parameters>
-          <![CDATA[#[payload]]]>
-        </db:input-parameters>
-      </db:select>
+      <!-- MOCK: Remplacement de l'appel DB select par des données mockées -->
+      <ee:transform doc:name="Mock Select Cards" doc:id="mock-select-cards">
+        <ee:message>
+          <ee:set-payload>
+            <![CDATA[%dw 2.0
+output application/java
+---
+[
+  {
+    id: 1,
+    card_number: "4532123456789012",
+    card_type: "Credit",
+    card_network: "Visa",
+    customer_id: "550e8400-e29b-41d4-a716-446655440000",
+    account_id: 1,
+    cardholder_name: "Jean Dupont",
+    expiration_date: "2025-12-31",
+    status: "Active",
+    credit_limit: 5000.00,
+    available_credit: 4500.00,
+    daily_purchase_limit: 1000.00,
+    daily_atm_withdrawal_limit: 500.00,
+    international_transactions_enabled: true,
+    online_transactions_enabled: true,
+    issued_date: "2024-01-01",
+    created_at: "2024-01-01T10:00:00Z",
+    updated_at: "2024-01-01T10:00:00Z"
+  }
+] default []]]>
+          </ee:set-payload>
+        </ee:message>
+      </ee:transform>
 
       <ee:transform doc:name="Transform to Card Response">
         <ee:message>
@@ -117,31 +129,37 @@ var controls = payload.controls default {}
     </ee:transform>
 
     <try doc:name="Try">
-      <db:insert doc:name="Insert Card" config-ref="Database_Config">
-        <db:sql>
-          <![CDATA[INSERT INTO cards (
-  card_number, card_type, card_network, customer_id, account_id,
-  cardholder_name, expiration_date, status, credit_limit, available_credit,
-  daily_purchase_limit, daily_atm_withdrawal_limit,
-  international_transactions_enabled, online_transactions_enabled,
-  issued_date, created_at, updated_at
-) VALUES (
-  :card_number, :card_type, :card_network, :customer_id, :account_id,
-  :cardholder_name, :expiration_date, :status, :credit_limit, :available_credit,
-  :daily_purchase_limit, :daily_atm_withdrawal_limit,
-  :international_transactions_enabled, :online_transactions_enabled,
-  :issued_date, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-)
-RETURNING id, card_number, card_type, card_network, customer_id, account_id,
-  cardholder_name, expiration_date, status, credit_limit, available_credit,
-  daily_purchase_limit, daily_atm_withdrawal_limit,
-  international_transactions_enabled, online_transactions_enabled,
-  issued_date, created_at, updated_at]]>
-        </db:sql>
-        <db:input-parameters>
-          <![CDATA[#[payload]]]>
-        </db:input-parameters>
-      </db:insert>
+      <!-- MOCK: Remplacement de l'appel DB insert par des données mockées -->
+      <ee:transform doc:name="Mock Insert Card" doc:id="mock-insert-card">
+        <ee:message>
+          <ee:set-payload>
+            <![CDATA[%dw 2.0
+output application/java
+var data = payload
+---
+[{
+  id: 1,
+  card_number: data.card_number,
+  card_type: data.card_type,
+  card_network: data.card_network,
+  customer_id: data.customer_id,
+  account_id: data.account_id,
+  cardholder_name: data.cardholder_name,
+  expiration_date: data.expiration_date,
+  status: data.status,
+  credit_limit: data.credit_limit,
+  available_credit: data.available_credit,
+  daily_purchase_limit: data.daily_purchase_limit,
+  daily_atm_withdrawal_limit: data.daily_atm_withdrawal_limit,
+  international_transactions_enabled: data.international_transactions_enabled,
+  online_transactions_enabled: data.online_transactions_enabled,
+  issued_date: data.issued_date,
+  created_at: now(),
+  updated_at: now()
+}]]]>
+          </ee:set-payload>
+        </ee:message>
+      </ee:transform>
 
       <ee:transform doc:name="Transform Response">
         <ee:message>
@@ -205,21 +223,37 @@ output application/json
   <!-- GET /cards/{cardId} - Business Logic Flow -->
   <flow name="get-card-by-id-business-logic" doc:name="get-card-by-id-business-logic">
     <try doc:name="Try">
-      <db:select doc:name="Select Card by ID" config-ref="Database_Config">
-        <db:sql>
-          <![CDATA[SELECT 
-  id, card_number, card_type, card_network, customer_id, account_id,
-  cardholder_name, expiration_date, status, credit_limit, available_credit,
-  daily_purchase_limit, daily_atm_withdrawal_limit,
-  international_transactions_enabled, online_transactions_enabled,
-  issued_date, created_at, updated_at
-FROM cards
-WHERE id = :cardId]]>
-        </db:sql>
-        <db:input-parameters>
-          <![CDATA[#[{cardId: vars.cardId}]]]>
-        </db:input-parameters>
-      </db:select>
+      <!-- MOCK: Remplacement de l'appel DB select par des données mockées -->
+      <ee:transform doc:name="Mock Select Card by ID" doc:id="mock-select-card-by-id">
+        <ee:message>
+          <ee:set-payload>
+            <![CDATA[%dw 2.0
+output application/java
+var cardId = vars.cardId default 1
+---
+[{
+  id: cardId,
+  card_number: "4532123456789012",
+  card_type: "Credit",
+  card_network: "Visa",
+  customer_id: "550e8400-e29b-41d4-a716-446655440000",
+  account_id: 1,
+  cardholder_name: "Jean Dupont",
+  expiration_date: "2025-12-31",
+  status: "Active",
+  credit_limit: 5000.00,
+  available_credit: 4500.00,
+  daily_purchase_limit: 1000.00,
+  daily_atm_withdrawal_limit: 500.00,
+  international_transactions_enabled: true,
+  online_transactions_enabled: true,
+  issued_date: "2024-01-01",
+  created_at: "2024-01-01T10:00:00Z",
+  updated_at: "2024-01-01T10:00:00Z"
+}] default []]]>
+          </ee:set-payload>
+        </ee:message>
+      </ee:transform>
 
       <choice doc:name="Card Found?">
         <when expression="#[sizeOf(payload) > 0]">
@@ -334,36 +368,37 @@ var controls = payload.controls default {}
     </ee:transform>
 
     <try doc:name="Try">
-      <db:update doc:name="Update Card" config-ref="Database_Config">
-        <db:sql>
-          <![CDATA[UPDATE cards SET
-  card_number = COALESCE(:card_number, card_number),
-  card_type = COALESCE(:card_type, card_type),
-  card_network = COALESCE(:card_network, card_network),
-  customer_id = COALESCE(:customer_id, customer_id),
-  account_id = COALESCE(:account_id, account_id),
-  cardholder_name = COALESCE(:cardholder_name, cardholder_name),
-  expiration_date = COALESCE(:expiration_date, expiration_date),
-  status = COALESCE(:status, status),
-  credit_limit = COALESCE(:credit_limit, credit_limit),
-  available_credit = COALESCE(:available_credit, available_credit),
-  daily_purchase_limit = COALESCE(:daily_purchase_limit, daily_purchase_limit),
-  daily_atm_withdrawal_limit = COALESCE(:daily_atm_withdrawal_limit, daily_atm_withdrawal_limit),
-  international_transactions_enabled = COALESCE(:international_transactions_enabled, international_transactions_enabled),
-  online_transactions_enabled = COALESCE(:online_transactions_enabled, online_transactions_enabled),
-  issued_date = COALESCE(:issued_date, issued_date),
-  updated_at = CURRENT_TIMESTAMP
-WHERE id = :cardId
-RETURNING id, card_number, card_type, card_network, customer_id, account_id,
-  cardholder_name, expiration_date, status, credit_limit, available_credit,
-  daily_purchase_limit, daily_atm_withdrawal_limit,
-  international_transactions_enabled, online_transactions_enabled,
-  issued_date, created_at, updated_at]]>
-        </db:sql>
-        <db:input-parameters>
-          <![CDATA[#[payload]]]>
-        </db:input-parameters>
-      </db:update>
+      <!-- MOCK: Remplacement de l'appel DB update par des données mockées -->
+      <ee:transform doc:name="Mock Update Card" doc:id="mock-update-card">
+        <ee:message>
+          <ee:set-payload>
+            <![CDATA[%dw 2.0
+output application/java
+var data = payload
+---
+[{
+  id: data.cardId,
+  card_number: data.card_number default "4532123456789012",
+  card_type: data.card_type default "Credit",
+  card_network: data.card_network default "Visa",
+  customer_id: data.customer_id default "550e8400-e29b-41d4-a716-446655440000",
+  account_id: data.account_id default 1,
+  cardholder_name: data.cardholder_name default "Jean Dupont",
+  expiration_date: data.expiration_date default "2025-12-31",
+  status: data.status default "Active",
+  credit_limit: data.credit_limit default 5000.00,
+  available_credit: data.available_credit default 4500.00,
+  daily_purchase_limit: data.daily_purchase_limit default 1000.00,
+  daily_atm_withdrawal_limit: data.daily_atm_withdrawal_limit default 500.00,
+  international_transactions_enabled: data.international_transactions_enabled default true,
+  online_transactions_enabled: data.online_transactions_enabled default true,
+  issued_date: data.issued_date default "2024-01-01",
+  created_at: "2024-01-01T10:00:00Z",
+  updated_at: now()
+}]]]>
+          </ee:set-payload>
+        </ee:message>
+      </ee:transform>
 
       <choice doc:name="Update Successful?">
         <when expression="#[sizeOf(payload) > 0]">
