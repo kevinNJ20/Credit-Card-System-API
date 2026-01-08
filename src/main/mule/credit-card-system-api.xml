@@ -1,42 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:http="http://www.mulesoft.org/schema/mule/http" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
-      http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:http="http://www.mulesoft.org/schema/mule/http" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
       http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
 	http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
 
   <!-- GET /cards - Business Logic Flow -->
   <flow name="get-cards-business-logic" doc:name="get-cards-business-logic">
     <try doc:name="Try">
-      <!-- MOCK: Remplacement de l'appel DB select par des données mockées -->
-      <ee:transform doc:name="Mock Select Cards" doc:id="mock-select-cards">
+      <ee:transform doc:name="Mock Select Cards">
         <ee:message>
-          <ee:set-payload>
-            <![CDATA[%dw 2.0
+          <ee:set-payload><![CDATA[%dw 2.0
 output application/java
+var params = payload default {}
 ---
+// Mock data - simulating database query results
 [
   {
-    id: 1,
-    card_number: "4532123456789012",
+    id: "card-001",
+    card_number: params.cardNumber default "1234567890123456",
     card_type: "Credit",
     card_network: "Visa",
-    customer_id: "550e8400-e29b-41d4-a716-446655440000",
-    account_id: 1,
-    cardholder_name: "Jean Dupont",
-    expiration_date: "2025-12-31",
-    status: "Active",
+    customer_id: params.customerId default "cust-001",
+    account_id: "acc-001",
+    cardholder_name: "John Doe",
+    expiration_date: "2025-12-31" as Date,
+    status: params.status default "Active",
     credit_limit: 5000.00,
     available_credit: 4500.00,
     daily_purchase_limit: 1000.00,
     daily_atm_withdrawal_limit: 500.00,
     international_transactions_enabled: true,
     online_transactions_enabled: true,
-    issued_date: "2024-01-01",
-    created_at: "2024-01-01T10:00:00Z",
-    updated_at: "2024-01-01T10:00:00Z"
+    issued_date: "2024-01-15" as Date,
+    created_at: "2024-01-15T00:00:00Z" as DateTime,
+    updated_at: "2024-01-20T00:00:00Z" as DateTime
   }
-] default []]]>
-          </ee:set-payload>
+] default []]]></ee:set-payload>
         </ee:message>
       </ee:transform>
 
@@ -75,7 +73,7 @@ payload map ((card) -> {
       <set-variable variableName="httpStatus" value="200" doc:name="Set Status 200" />
 
       <error-handler>
-        <on-error-propagate type="DB:QUERY_EXECUTION,DB:CONNECTIVITY" enableNotifications="true" logException="true" doc:name="Database Error">
+        <on-error-propagate type="*" enableNotifications="true" logException="true" doc:name="Error Handler">
           <ee:transform doc:name="Transform Error">
             <ee:message>
               <ee:set-payload>
@@ -129,35 +127,33 @@ var controls = payload.controls default {}
     </ee:transform>
 
     <try doc:name="Try">
-      <!-- MOCK: Remplacement de l'appel DB insert par des données mockées -->
-      <ee:transform doc:name="Mock Insert Card" doc:id="mock-insert-card">
+      <ee:transform doc:name="Mock Insert Card">
         <ee:message>
-          <ee:set-payload>
-            <![CDATA[%dw 2.0
+          <ee:set-payload><![CDATA[%dw 2.0
 output application/java
-var data = payload
+var req = payload
 ---
+// Mock insert - return created card
 [{
-  id: 1,
-  card_number: data.card_number,
-  card_type: data.card_type,
-  card_network: data.card_network,
-  customer_id: data.customer_id,
-  account_id: data.account_id,
-  cardholder_name: data.cardholder_name,
-  expiration_date: data.expiration_date,
-  status: data.status,
-  credit_limit: data.credit_limit,
-  available_credit: data.available_credit,
-  daily_purchase_limit: data.daily_purchase_limit,
-  daily_atm_withdrawal_limit: data.daily_atm_withdrawal_limit,
-  international_transactions_enabled: data.international_transactions_enabled,
-  online_transactions_enabled: data.online_transactions_enabled,
-  issued_date: data.issued_date,
+  id: "card-" ++ (now() as String {format: "yyyyMMddHHmmssSSS"}),
+  card_number: req.card_number,
+  card_type: req.card_type,
+  card_network: req.card_network default null,
+  customer_id: req.customer_id,
+  account_id: req.account_id default null,
+  cardholder_name: req.cardholder_name default null,
+  expiration_date: req.expiration_date default null,
+  status: req.status default "Active",
+  credit_limit: req.credit_limit default null,
+  available_credit: req.available_credit default (req.credit_limit default null),
+  daily_purchase_limit: req.daily_purchase_limit default null,
+  daily_atm_withdrawal_limit: req.daily_atm_withdrawal_limit default null,
+  international_transactions_enabled: req.international_transactions_enabled default true,
+  online_transactions_enabled: req.online_transactions_enabled default true,
+  issued_date: req.issued_date default null,
   created_at: now(),
   updated_at: now()
-}]]]>
-          </ee:set-payload>
+}]]]></ee:set-payload>
         </ee:message>
       </ee:transform>
 
@@ -197,7 +193,7 @@ var card = payload[0]
       <set-variable variableName="httpStatus" value="201" doc:name="Set Status 201" />
 
       <error-handler>
-        <on-error-propagate type="DB:QUERY_EXECUTION,DB:CONNECTIVITY" enableNotifications="true" logException="true" doc:name="Database Error">
+        <on-error-propagate type="*" enableNotifications="true" logException="true" doc:name="Error Handler">
           <ee:transform doc:name="Transform Error">
             <ee:message>
               <ee:set-payload>
@@ -223,35 +219,36 @@ output application/json
   <!-- GET /cards/{cardId} - Business Logic Flow -->
   <flow name="get-card-by-id-business-logic" doc:name="get-card-by-id-business-logic">
     <try doc:name="Try">
-      <!-- MOCK: Remplacement de l'appel DB select par des données mockées -->
-      <ee:transform doc:name="Mock Select Card by ID" doc:id="mock-select-card-by-id">
+      <ee:transform doc:name="Mock Select Card by ID">
         <ee:message>
-          <ee:set-payload>
-            <![CDATA[%dw 2.0
+          <ee:set-payload><![CDATA[%dw 2.0
 output application/java
-var cardId = vars.cardId default 1
+var cardId = vars.cardId
 ---
-[{
-  id: cardId,
-  card_number: "4532123456789012",
-  card_type: "Credit",
-  card_network: "Visa",
-  customer_id: "550e8400-e29b-41d4-a716-446655440000",
-  account_id: 1,
-  cardholder_name: "Jean Dupont",
-  expiration_date: "2025-12-31",
-  status: "Active",
-  credit_limit: 5000.00,
-  available_credit: 4500.00,
-  daily_purchase_limit: 1000.00,
-  daily_atm_withdrawal_limit: 500.00,
-  international_transactions_enabled: true,
-  online_transactions_enabled: true,
-  issued_date: "2024-01-01",
-  created_at: "2024-01-01T10:00:00Z",
-  updated_at: "2024-01-01T10:00:00Z"
-}] default []]]>
-          </ee:set-payload>
+// Mock data - return card if cardId matches, otherwise empty array
+if (cardId != null and cardId != "")
+  [{
+    id: cardId,
+    card_number: "1234567890123456",
+    card_type: "Credit",
+    card_network: "Visa",
+    customer_id: "cust-001",
+    account_id: "acc-001",
+    cardholder_name: "John Doe",
+    expiration_date: "2025-12-31" as Date,
+    status: "Active",
+    credit_limit: 5000.00,
+    available_credit: 4500.00,
+    daily_purchase_limit: 1000.00,
+    daily_atm_withdrawal_limit: 500.00,
+    international_transactions_enabled: true,
+    online_transactions_enabled: true,
+    issued_date: "2024-01-15" as Date,
+    created_at: "2024-01-15T00:00:00Z" as DateTime,
+    updated_at: "2024-01-20T00:00:00Z" as DateTime
+  }]
+else
+  []]]></ee:set-payload>
         </ee:message>
       </ee:transform>
 
@@ -313,7 +310,7 @@ output application/json
       </choice>
 
       <error-handler>
-        <on-error-propagate type="DB:QUERY_EXECUTION,DB:CONNECTIVITY" enableNotifications="true" logException="true" doc:name="Database Error">
+        <on-error-propagate type="*" enableNotifications="true" logException="true" doc:name="Error Handler">
           <ee:transform doc:name="Transform Error">
             <ee:message>
               <ee:set-payload>
@@ -368,35 +365,37 @@ var controls = payload.controls default {}
     </ee:transform>
 
     <try doc:name="Try">
-      <!-- MOCK: Remplacement de l'appel DB update par des données mockées -->
-      <ee:transform doc:name="Mock Update Card" doc:id="mock-update-card">
+      <ee:transform doc:name="Mock Update Card">
         <ee:message>
-          <ee:set-payload>
-            <![CDATA[%dw 2.0
+          <ee:set-payload><![CDATA[%dw 2.0
 output application/java
-var data = payload
+var req = payload
+var cardId = req.cardId
 ---
-[{
-  id: data.cardId,
-  card_number: data.card_number default "4532123456789012",
-  card_type: data.card_type default "Credit",
-  card_network: data.card_network default "Visa",
-  customer_id: data.customer_id default "550e8400-e29b-41d4-a716-446655440000",
-  account_id: data.account_id default 1,
-  cardholder_name: data.cardholder_name default "Jean Dupont",
-  expiration_date: data.expiration_date default "2025-12-31",
-  status: data.status default "Active",
-  credit_limit: data.credit_limit default 5000.00,
-  available_credit: data.available_credit default 4500.00,
-  daily_purchase_limit: data.daily_purchase_limit default 1000.00,
-  daily_atm_withdrawal_limit: data.daily_atm_withdrawal_limit default 500.00,
-  international_transactions_enabled: data.international_transactions_enabled default true,
-  online_transactions_enabled: data.online_transactions_enabled default true,
-  issued_date: data.issued_date default "2024-01-01",
-  created_at: "2024-01-01T10:00:00Z",
-  updated_at: now()
-}]]]>
-          </ee:set-payload>
+// Mock update - return updated card if cardId exists
+if (cardId != null and cardId != "")
+  [{
+    id: cardId,
+    card_number: req.card_number default "1234567890123456",
+    card_type: req.card_type default "Credit",
+    card_network: req.card_network default "Visa",
+    customer_id: req.customer_id default "cust-001",
+    account_id: req.account_id default "acc-001",
+    cardholder_name: req.cardholder_name default "John Doe",
+    expiration_date: req.expiration_date default ("2025-12-31" as Date),
+    status: req.status default "Active",
+    credit_limit: req.credit_limit default 5000.00,
+    available_credit: req.available_credit default 4500.00,
+    daily_purchase_limit: req.daily_purchase_limit default 1000.00,
+    daily_atm_withdrawal_limit: req.daily_atm_withdrawal_limit default 500.00,
+    international_transactions_enabled: req.international_transactions_enabled default true,
+    online_transactions_enabled: req.online_transactions_enabled default true,
+    issued_date: req.issued_date default ("2024-01-15" as Date),
+    created_at: "2024-01-15T00:00:00Z" as DateTime,
+    updated_at: now()
+  }]
+else
+  []]]></ee:set-payload>
         </ee:message>
       </ee:transform>
 
@@ -458,7 +457,7 @@ output application/json
       </choice>
 
       <error-handler>
-        <on-error-propagate type="DB:QUERY_EXECUTION,DB:CONNECTIVITY" enableNotifications="true" logException="true" doc:name="Database Error">
+        <on-error-propagate type="*" enableNotifications="true" logException="true" doc:name="Error Handler">
           <ee:transform doc:name="Transform Error">
             <ee:message>
               <ee:set-payload>
