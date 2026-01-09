@@ -11,7 +11,7 @@ http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/m
   <http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config">
     <http:listener-connection host="0.0.0.0" port="8081" />
   </http:listener-config>
-	<apikit:config outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" doc:name="Router" doc:id="ecb4ba89-f24e-4db3-89b9-fff7da01ea22" name="Router" api="credit-card-system-api.raml" />
+	<apikit:config outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" doc:name="Router" doc:id="ecb4ba89-f24e-4db3-89b9-fff7da01ea22" name="credit-card-system-api-config" api="credit-card-system-api.raml" />
 
 
 </mule>

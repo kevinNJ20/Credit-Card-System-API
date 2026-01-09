@@ -1,33 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mule xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
-      xmlns:http="http://www.mulesoft.org/schema/mule/http"
-      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
-      xmlns="http://www.mulesoft.org/schema/mule/core"
-      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
-      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-      xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
-      http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
-      http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd
-      http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
-
-  <!-- APIkit Router Configuration -->
-
-  <!-- Main HTTP Listener with APIkit Router -->
-  <flow name="main">
-    <http:listener config-ref="HTTP_Listener_config" path="/api/*" doc:name="HTTP Listener">
-			<http:response statusCode="#[vars.httpStatus default 200]">
-				<http:headers ><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
-			</http:response>
-			<http:error-response statusCode="#[vars.httpStatus default 500]" >
-				<http:headers ><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
-			</http:error-response>
-		</http:listener>
-    <apikit:router doc:name="APIkit Router" doc:id="ecb4ba89-f24e-4db3-89b9-fff7da01ea22" config-ref="Router"/>
-    <error-handler>
-      <on-error-propagate type="APIKIT:NOT_FOUND" enableNotifications="true" logException="true" doc:name="On Error Propagate">
-        <ee:transform doc:name="Transform Error Response">
-          <ee:message>
-            <ee:set-payload><![CDATA[%dw 2.0
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd       http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd       http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd       http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+    <!-- APIkit Router Configuration -->
+    <!-- Main HTTP Listener with APIkit Router -->
+    <flow name="main">
+        <http:listener config-ref="HTTP_Listener_config" path="/api/*" doc:name="HTTP Listener">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router doc:name="APIkit Router" doc:id="ecb4ba89-f24e-4db3-89b9-fff7da01ea22" config-ref="credit-card-system-api-config" />
+        <error-handler>
+            <on-error-propagate type="APIKIT:NOT_FOUND" enableNotifications="true" logException="true" doc:name="On Error Propagate">
+                <ee:transform doc:name="Transform Error Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
 {
@@ -37,14 +26,14 @@ output application/json
     timestamp: now()
   }
 }]]></ee:set-payload>
-          </ee:message>
-        </ee:transform>
-        <set-variable value="404" doc:name="httpStatus" doc:id="fd403a76-edc6-486c-b2bb-4cbf00499e8b" variableName="httpStatus"/>
-      </on-error-propagate>
-      <on-error-propagate type="APIKIT:BAD_REQUEST" enableNotifications="true" logException="true" doc:name="On Error Propagate">
-        <ee:transform doc:name="Transform Error Response">
-          <ee:message>
-            <ee:set-payload><![CDATA[%dw 2.0
+                    </ee:message>
+                </ee:transform>
+                <set-variable value="404" doc:name="httpStatus" doc:id="fd403a76-edc6-486c-b2bb-4cbf00499e8b" variableName="httpStatus" />
+            </on-error-propagate>
+            <on-error-propagate type="APIKIT:BAD_REQUEST" enableNotifications="true" logException="true" doc:name="On Error Propagate">
+                <ee:transform doc:name="Transform Error Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
 {
@@ -54,14 +43,14 @@ output application/json
     timestamp: now()
   }
 }]]></ee:set-payload>
-          </ee:message>
-        </ee:transform>
-        <set-variable value="400" doc:name="httpStatus" doc:id="e1ad169e-52be-468e-aaf4-fa327568d0a8" variableName="httpStatus"/>
-      </on-error-propagate>
-      <on-error-propagate type="*" enableNotifications="true" logException="true" doc:name="On Error Propagate">
-        <ee:transform doc:name="Transform Error Response">
-          <ee:message>
-            <ee:set-payload><![CDATA[%dw 2.0
+                    </ee:message>
+                </ee:transform>
+                <set-variable value="400" doc:name="httpStatus" doc:id="e1ad169e-52be-468e-aaf4-fa327568d0a8" variableName="httpStatus" />
+            </on-error-propagate>
+            <on-error-propagate type="*" enableNotifications="true" logException="true" doc:name="On Error Propagate">
+                <ee:transform doc:name="Transform Error Response">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
 {
@@ -71,19 +60,17 @@ output application/json
     timestamp: now()
   }
 }]]></ee:set-payload>
-          </ee:message>
-        </ee:transform>
-        <set-variable value="500" doc:name="httpStatus" doc:id="efcc70dc-0a77-4b44-af5d-be3ca7199dab" variableName="httpStatus"/>
-      </on-error-propagate>
-    </error-handler>
-  </flow>
-
-  <!-- GET /cards -->
-  <flow name="get:\cards:Router">
-    <ee:transform doc:name="Build Query Parameters">
-      <ee:message>
-        <ee:set-payload>
-          <![CDATA[%dw 2.0
+                    </ee:message>
+                </ee:transform>
+                <set-variable value="500" doc:name="httpStatus" doc:id="efcc70dc-0a77-4b44-af5d-be3ca7199dab" variableName="httpStatus" />
+            </on-error-propagate>
+        </error-handler>
+    </flow>
+    <!-- GET /cards -->
+    <flow name="get:\cards:credit-card-system-api-config">
+        <ee:transform doc:name="Build Query Parameters">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
 output application/java
 ---
 {
@@ -92,44 +79,40 @@ output application/java
   status: attributes.queryParams.status default null,
   limit: (attributes.queryParams.limit as Number default 100) as String,
   offset: (attributes.queryParams.offset as Number default 0) as String
-}]]>
-        </ee:set-payload>
-      </ee:message>
-    </ee:transform>
-    <flow-ref name="get-cards-business-logic" doc:name="get-cards-business-logic" />
-  </flow>
-
-  <!-- POST /cards -->
-  <flow name="post:\cards:Router">
-    <flow-ref name="create-card-business-logic" doc:name="create-card-business-logic" />
-  </flow>
-
-  <!-- GET /cards/{cardId} -->
-  <flow name="get:\cards\(cardId):Router">
-    <set-variable value="#[attributes.uriParams.cardId]" variableName="cardId" doc:name="Set Card ID" />
-    <flow-ref name="get-card-by-id-business-logic" doc:name="get-card-by-id-business-logic" />
-  </flow>
-
-  <!-- PUT /cards/{cardId} -->
-  <flow name="put:\cards\(cardId):Router">
-    <set-variable value="#[attributes.uriParams.cardId]" variableName="cardId" doc:name="Set Card ID" />
-    <flow-ref name="update-card-business-logic" doc:name="update-card-business-logic" />
-  </flow>
-	<flow name="console" doc:id="6cc78e41-442c-4d9d-a0e6-1e7a44834e6f" >
-		<http:listener doc:name="HTTP Listener" doc:id="a44246c8-5530-474c-91f6-9931bf9fa7da" config-ref="HTTP_Listener_config" path="/console/*" >
-			<http:response statusCode="#[vars.httpStatus default 200]" >
-				<http:headers ><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
-			</http:response>
-			<http:error-response statusCode="#[vars.httpStatus default 500]" >
-				<http:headers ><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
-			</http:error-response>
-		</http:listener>
-		<apikit:console doc:name="APIkit Console" doc:id="c0ccccad-6218-4ff3-98f1-4baee5a3493a" config-ref="Router"/>
-		<error-handler >
-			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="da31b207-6792-45c1-898d-079c7cc35289" type="APIKIT:NOT_FOUND" >
-				<ee:transform doc:name="Transform Error Response" doc:id="33246b78-5d5a-4c07-a397-423fb81497d9" >
-					<ee:message >
-						<ee:set-payload ><![CDATA[%dw 2.0
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <flow-ref name="get-cards-business-logic" doc:name="get-cards-business-logic" />
+    </flow>
+    <!-- POST /cards -->
+    <flow name="post:\cards:application\json:credit-card-system-api-config">
+        <flow-ref name="create-card-business-logic" doc:name="create-card-business-logic" />
+    </flow>
+    <!-- GET /cards/{cardId} -->
+    <flow name="get:\cards\(cardId):credit-card-system-api-config">
+        <set-variable value="#[attributes.uriParams.cardId]" variableName="cardId" doc:name="Set Card ID" />
+        <flow-ref name="get-card-by-id-business-logic" doc:name="get-card-by-id-business-logic" />
+    </flow>
+    <!-- PUT /cards/{cardId} -->
+    <flow name="put:\cards\(cardId):application\json:credit-card-system-api-config">
+        <set-variable value="#[attributes.uriParams.cardId]" variableName="cardId" doc:name="Set Card ID" />
+        <flow-ref name="update-card-business-logic" doc:name="update-card-business-logic" />
+    </flow>
+    <flow name="console" doc:id="6cc78e41-442c-4d9d-a0e6-1e7a44834e6f">
+        <http:listener doc:name="HTTP Listener" doc:id="a44246c8-5530-474c-91f6-9931bf9fa7da" config-ref="HTTP_Listener_config" path="/console/*">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:console doc:name="APIkit Console" doc:id="c0ccccad-6218-4ff3-98f1-4baee5a3493a" config-ref="credit-card-system-api-config" />
+        <error-handler>
+            <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="da31b207-6792-45c1-898d-079c7cc35289" type="APIKIT:NOT_FOUND">
+                <ee:transform doc:name="Transform Error Response" doc:id="33246b78-5d5a-4c07-a397-423fb81497d9">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
 {
@@ -139,14 +122,14 @@ output application/json
     timestamp: now()
   }
 }]]></ee:set-payload>
-					</ee:message>
-				</ee:transform>
-				<set-variable value="404" doc:name="httpStatus" doc:id="fd105a78-093b-4cfa-8655-109d8f426220" variableName="httpStatus" />
-			</on-error-propagate>
-			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate1" doc:id="ea4220bb-8668-4daf-83ff-e61735cf158f" type="APIKIT:BAD_REQUEST" >
-				<ee:transform doc:name="Transform Error Response" doc:id="19b100fa-c686-4b22-a7d3-81905e24eaa0" >
-					<ee:message >
-						<ee:set-payload ><![CDATA[%dw 2.0
+                    </ee:message>
+                </ee:transform>
+                <set-variable value="404" doc:name="httpStatus" doc:id="fd105a78-093b-4cfa-8655-109d8f426220" variableName="httpStatus" />
+            </on-error-propagate>
+            <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate1" doc:id="ea4220bb-8668-4daf-83ff-e61735cf158f" type="APIKIT:BAD_REQUEST">
+                <ee:transform doc:name="Transform Error Response" doc:id="19b100fa-c686-4b22-a7d3-81905e24eaa0">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
 {
@@ -156,14 +139,14 @@ output application/json
     timestamp: now()
   }
 }]]></ee:set-payload>
-					</ee:message>
-				</ee:transform>
-				<set-variable value="400" doc:name="httpStatus" doc:id="0acaf2c8-6efb-4c2b-a7f4-79f7ba173bbd" variableName="httpStatus" />
-			</on-error-propagate>
-			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate2" doc:id="db0535a4-dcf0-45d6-8593-5e4bace85b58" type="*" >
-				<ee:transform doc:name="Transform Error Response" doc:id="36ccc15a-6da9-4442-953c-b237ce7b5cf2" >
-					<ee:message >
-						<ee:set-payload ><![CDATA[%dw 2.0
+                    </ee:message>
+                </ee:transform>
+                <set-variable value="400" doc:name="httpStatus" doc:id="0acaf2c8-6efb-4c2b-a7f4-79f7ba173bbd" variableName="httpStatus" />
+            </on-error-propagate>
+            <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate2" doc:id="db0535a4-dcf0-45d6-8593-5e4bace85b58" type="*">
+                <ee:transform doc:name="Transform Error Response" doc:id="36ccc15a-6da9-4442-953c-b237ce7b5cf2">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
 {
@@ -173,11 +156,10 @@ output application/json
     timestamp: now()
   }
 }]]></ee:set-payload>
-					</ee:message>
-				</ee:transform>
-				<set-variable value="500" doc:name="httpStatus" doc:id="9b94afa1-663c-4454-a80b-1183ad08ce39" variableName="httpStatus" />
-			</on-error-propagate>
-		</error-handler>
-	</flow>
-
+                    </ee:message>
+                </ee:transform>
+                <set-variable value="500" doc:name="httpStatus" doc:id="9b94afa1-663c-4454-a80b-1183ad08ce39" variableName="httpStatus" />
+            </on-error-propagate>
+        </error-handler>
+    </flow>
 </mule>
