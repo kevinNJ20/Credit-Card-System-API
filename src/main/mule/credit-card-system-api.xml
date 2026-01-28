@@ -1,42 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:http="http://www.mulesoft.org/schema/mule/http" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:db="http://www.mulesoft.org/schema/mule/db" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
       http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
-	http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+	http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
 
   <!-- GET /cards - Business Logic Flow -->
   <flow name="get-cards-business-logic" doc:name="get-cards-business-logic">
     <try doc:name="Try">
-      <ee:transform doc:name="Mock Select Cards">
-        <ee:message>
-          <ee:set-payload><![CDATA[%dw 2.0
-output application/java
-var params = payload default {}
----
-// Mock data - simulating database query results
-[
-  {
-    id: "card-001",
-    card_number: params.cardNumber default "1234567890123456",
-    card_type: "Credit",
-    card_network: "Visa",
-    customer_id: params.customerId default "cust-001",
-    account_id: "acc-001",
-    cardholder_name: "John Doe",
-    expiration_date: "2025-12-31" as Date,
-    status: params.status default "Active",
-    credit_limit: 5000.00,
-    available_credit: 4500.00,
-    daily_purchase_limit: 1000.00,
-    daily_atm_withdrawal_limit: 500.00,
-    international_transactions_enabled: true,
-    online_transactions_enabled: true,
-    issued_date: "2024-01-15" as Date,
-    created_at: "2024-01-15T00:00:00Z" as DateTime,
-    updated_at: "2024-01-20T00:00:00Z" as DateTime
-  }
-] default []]]></ee:set-payload>
-        </ee:message>
-      </ee:transform>
+      <db:select config-ref="Database_Config" doc:name="Select Cards">
+        <db:sql><![CDATA[
+          SELECT *
+          FROM cards
+          WHERE
+            (:customerId::uuid IS NULL OR customer_id = :customerId::uuid)
+            AND (:cardNumber IS NULL OR card_number = :cardNumber)
+            AND (:status IS NULL OR status = :status)
+          ORDER BY created_at DESC
+          LIMIT :limit::integer OFFSET :offset::integer
+        ]]></db:sql>
+        <db:input-parameters><![CDATA[#[payload]]]></db:input-parameters>
+      </db:select>
 
       <ee:transform doc:name="Transform to Card Response">
         <ee:message>
@@ -45,12 +28,12 @@ var params = payload default {}
 output application/json
 ---
 payload map ((card) -> {
-  id: card.id,
+  id: card.id as String,
   cardNumber: card.card_number,
   cardType: card.card_type,
   cardNetwork: card.card_network,
-  customerId: card.customer_id,
-  accountId: card.account_id,
+  customerId: card.customer_id as String,
+  accountId: card.account_id as String,
   cardholderName: card.cardholder_name,
   expirationDate: card.expiration_date,
   status: card.status,
@@ -127,35 +110,24 @@ var controls = payload.controls default {}
     </ee:transform>
 
     <try doc:name="Try">
-      <ee:transform doc:name="Mock Insert Card">
-        <ee:message>
-          <ee:set-payload><![CDATA[%dw 2.0
-output application/java
-var req = payload
----
-// Mock insert - return created card
-[{
-  id: "card-" ++ (now() as String {format: "yyyyMMddHHmmssSSS"}),
-  card_number: req.card_number,
-  card_type: req.card_type,
-  card_network: req.card_network default null,
-  customer_id: req.customer_id,
-  account_id: req.account_id default null,
-  cardholder_name: req.cardholder_name default null,
-  expiration_date: req.expiration_date default null,
-  status: req.status default "Active",
-  credit_limit: req.credit_limit default null,
-  available_credit: req.available_credit default (req.credit_limit default null),
-  daily_purchase_limit: req.daily_purchase_limit default null,
-  daily_atm_withdrawal_limit: req.daily_atm_withdrawal_limit default null,
-  international_transactions_enabled: req.international_transactions_enabled default true,
-  online_transactions_enabled: req.online_transactions_enabled default true,
-  issued_date: req.issued_date default null,
-  created_at: now(),
-  updated_at: now()
-}]]]></ee:set-payload>
-        </ee:message>
-      </ee:transform>
+      <db:insert config-ref="Database_Config" doc:name="Insert Card">
+        <db:sql><![CDATA[
+          INSERT INTO cards (
+            card_number, card_type, card_network, customer_id, account_id,
+            cardholder_name, expiration_date, status, credit_limit, available_credit,
+            daily_purchase_limit, daily_atm_withdrawal_limit,
+            international_transactions_enabled, online_transactions_enabled, issued_date
+          )
+          VALUES (
+            :card_number, :card_type, :card_network, :customer_id::uuid, :account_id::uuid,
+            :cardholder_name, :expiration_date::date, :status, :credit_limit, :available_credit,
+            :daily_purchase_limit, :daily_atm_withdrawal_limit,
+            :international_transactions_enabled, :online_transactions_enabled, :issued_date::date
+          )
+          RETURNING *
+        ]]></db:sql>
+        <db:input-parameters><![CDATA[#[payload]]]></db:input-parameters>
+      </db:insert>
 
       <ee:transform doc:name="Transform Response">
         <ee:message>
@@ -165,12 +137,12 @@ output application/json
 var card = payload[0]
 ---
 {
-  id: card.id,
+  id: card.id as String,
   cardNumber: card.card_number,
   cardType: card.card_type,
   cardNetwork: card.card_network,
-  customerId: card.customer_id,
-  accountId: card.account_id,
+  customerId: card.customer_id as String,
+  accountId: card.account_id as String,
   cardholderName: card.cardholder_name,
   expirationDate: card.expiration_date,
   status: card.status,
@@ -219,38 +191,16 @@ output application/json
   <!-- GET /cards/{cardId} - Business Logic Flow -->
   <flow name="get-card-by-id-business-logic" doc:name="get-card-by-id-business-logic">
     <try doc:name="Try">
-      <ee:transform doc:name="Mock Select Card by ID">
-        <ee:message>
-          <ee:set-payload><![CDATA[%dw 2.0
-output application/java
-var cardId = vars.cardId
----
-// Mock data - return card if cardId matches, otherwise empty array
-if (cardId != null and cardId != "")
-  [{
-    id: cardId,
-    card_number: "1234567890123456",
-    card_type: "Credit",
-    card_network: "Visa",
-    customer_id: "cust-001",
-    account_id: "acc-001",
-    cardholder_name: "John Doe",
-    expiration_date: "2025-12-31" as Date,
-    status: "Active",
-    credit_limit: 5000.00,
-    available_credit: 4500.00,
-    daily_purchase_limit: 1000.00,
-    daily_atm_withdrawal_limit: 500.00,
-    international_transactions_enabled: true,
-    online_transactions_enabled: true,
-    issued_date: "2024-01-15" as Date,
-    created_at: "2024-01-15T00:00:00Z" as DateTime,
-    updated_at: "2024-01-20T00:00:00Z" as DateTime
-  }]
-else
-  []]]></ee:set-payload>
-        </ee:message>
-      </ee:transform>
+      <db:select config-ref="Database_Config" doc:name="Select Card by ID">
+        <db:sql><![CDATA[
+          SELECT *
+          FROM cards
+          WHERE id = :cardId::uuid
+        ]]></db:sql>
+        <db:input-parameters><![CDATA[#[{
+          cardId: vars.cardId
+        }]]]></db:input-parameters>
+      </db:select>
 
       <choice doc:name="Card Found?">
         <when expression="#[sizeOf(payload) > 0]">
@@ -262,12 +212,12 @@ output application/json
 var card = payload[0]
 ---
 {
-  id: card.id,
+  id: card.id as String,
   cardNumber: card.card_number,
   cardType: card.card_type,
   cardNetwork: card.card_network,
-  customerId: card.customer_id,
-  accountId: card.account_id,
+  customerId: card.customer_id as String,
+  accountId: card.account_id as String,
   cardholderName: card.cardholder_name,
   expirationDate: card.expiration_date,
   status: card.status,
@@ -365,39 +315,31 @@ var controls = payload.controls default {}
     </ee:transform>
 
     <try doc:name="Try">
-      <ee:transform doc:name="Mock Update Card">
-        <ee:message>
-          <ee:set-payload><![CDATA[%dw 2.0
-output application/java
-var req = payload
-var cardId = req.cardId
----
-// Mock update - return updated card if cardId exists
-if (cardId != null and cardId != "")
-  [{
-    id: cardId,
-    card_number: req.card_number default "1234567890123456",
-    card_type: req.card_type default "Credit",
-    card_network: req.card_network default "Visa",
-    customer_id: req.customer_id default "cust-001",
-    account_id: req.account_id default "acc-001",
-    cardholder_name: req.cardholder_name default "John Doe",
-    expiration_date: req.expiration_date default ("2025-12-31" as Date),
-    status: req.status default "Active",
-    credit_limit: req.credit_limit default 5000.00,
-    available_credit: req.available_credit default 4500.00,
-    daily_purchase_limit: req.daily_purchase_limit default 1000.00,
-    daily_atm_withdrawal_limit: req.daily_atm_withdrawal_limit default 500.00,
-    international_transactions_enabled: req.international_transactions_enabled default true,
-    online_transactions_enabled: req.online_transactions_enabled default true,
-    issued_date: req.issued_date default ("2024-01-15" as Date),
-    created_at: "2024-01-15T00:00:00Z" as DateTime,
-    updated_at: now()
-  }]
-else
-  []]]></ee:set-payload>
-        </ee:message>
-      </ee:transform>
+      <db:update config-ref="Database_Config" doc:name="Update Card">
+        <db:sql><![CDATA[
+          UPDATE cards
+          SET
+            card_number = COALESCE(:card_number, card_number),
+            card_type = COALESCE(:card_type, card_type),
+            card_network = COALESCE(:card_network, card_network),
+            customer_id = COALESCE(:customer_id::uuid, customer_id),
+            account_id = COALESCE(:account_id::uuid, account_id),
+            cardholder_name = COALESCE(:cardholder_name, cardholder_name),
+            expiration_date = COALESCE(:expiration_date::date, expiration_date),
+            status = COALESCE(:status, status),
+            credit_limit = COALESCE(:credit_limit, credit_limit),
+            available_credit = COALESCE(:available_credit, available_credit),
+            daily_purchase_limit = COALESCE(:daily_purchase_limit, daily_purchase_limit),
+            daily_atm_withdrawal_limit = COALESCE(:daily_atm_withdrawal_limit, daily_atm_withdrawal_limit),
+            international_transactions_enabled = COALESCE(:international_transactions_enabled, international_transactions_enabled),
+            online_transactions_enabled = COALESCE(:online_transactions_enabled, online_transactions_enabled),
+            issued_date = COALESCE(:issued_date::date, issued_date),
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = :cardId::uuid
+          RETURNING *
+        ]]></db:sql>
+        <db:input-parameters><![CDATA[#[payload]]]></db:input-parameters>
+      </db:update>
 
       <choice doc:name="Update Successful?">
         <when expression="#[sizeOf(payload) > 0]">
@@ -409,12 +351,12 @@ output application/json
 var card = payload[0]
 ---
 {
-  id: card.id,
+  id: card.id as String,
   cardNumber: card.card_number,
   cardType: card.card_type,
   cardNetwork: card.card_network,
-  customerId: card.customer_id,
-  accountId: card.account_id,
+  customerId: card.customer_id as String,
+  accountId: card.account_id as String,
   cardholderName: card.cardholder_name,
   expirationDate: card.expiration_date,
   status: card.status,
