@@ -33,7 +33,7 @@ payload map ((card) -> {
   cardType: card.card_type,
   cardNetwork: card.card_network,
   customerId: card.customer_id as String,
-  accountId: card.account_id as String,
+  accountId: if (card.account_id != null) card.account_id as String else null,
   cardholderName: card.cardholder_name,
   expirationDate: card.expiration_date,
   status: card.status,
@@ -81,32 +81,61 @@ output application/json
 
   <!-- POST /cards - Business Logic Flow -->
   <flow name="create-card-business-logic" doc:name="create-card-business-logic">
+    <set-variable value="#[payload]" variableName="originalPayload" doc:name="Store Original Payload" />
+    
     <ee:transform doc:name="Transform Request to DB Format">
       <ee:message>
         <ee:set-payload>
           <![CDATA[%dw 2.0
 output application/java
 var controls = payload.controls default {}
+fun normalizeCardType(ct) = 
+  if (ct == null) null
+  else if (ct as String == "CreditCard" or ct as String == "creditcard" or ct as String == "CREDITCARD" or ct as String == "Credit" or ct as String == "credit") "CreditCard"
+  else if (ct as String == "DebitCard" or ct as String == "debitcard" or ct as String == "DEBITCARD" or ct as String == "Debit" or ct as String == "debit") "DebitCard"
+  else if (ct as String == "PrepaidCard" or ct as String == "prepaidcard" or ct as String == "PREPAIDCARD" or ct as String == "Prepaid" or ct as String == "prepaid") "PrepaidCard"
+  else ct as String
+fun normalizeCardNetwork(cn) = 
+  if (cn == null) null
+  else if (cn as String == "Visa" or cn as String == "visa" or cn as String == "VISA") "Visa"
+  else if (cn as String == "Mastercard" or cn as String == "mastercard" or cn as String == "MASTERCARD") "Mastercard"
+  else if (cn as String == "AmericanExpress" or cn as String == "americanexpress" or cn as String == "AMERICANEXPRESS" or cn as String == "Amex" or cn as String == "amex") "AmericanExpress"
+  else if (cn as String == "Discover" or cn as String == "discover" or cn as String == "DISCOVER") "Discover"
+  else cn as String
+fun normalizeCardStatus(s) = 
+  if (s == null) "Active"
+  else if (s as String == "Active" or s as String == "active" or s as String == "ACTIVE") "Active"
+  else if (s as String == "Inactive" or s as String == "inactive" or s as String == "INACTIVE") "Inactive"
+  else if (s as String == "Blocked" or s as String == "blocked" or s as String == "BLOCKED") "Blocked"
+  else if (s as String == "Expired" or s as String == "expired" or s as String == "EXPIRED") "Expired"
+  else if (s as String == "Cancelled" or s as String == "cancelled" or s as String == "CANCELLED" or s as String == "Canceled" or s as String == "canceled") "Cancelled"
+  else s as String
 ---
 {
   card_number: payload.cardNumber,
-  card_type: payload.cardType,
-  card_network: payload.cardNetwork default null,
+  card_type: normalizeCardType(payload.cardType),
+  card_network: normalizeCardNetwork(payload.cardNetwork),
   customer_id: payload.customerId,
   account_id: payload.accountId default null,
   cardholder_name: payload.cardholderName default null,
   expiration_date: payload.expirationDate default null,
-  status: payload.status default 'Active',
+  status: normalizeCardStatus(payload.status),
   credit_limit: payload.creditLimit default null,
   available_credit: payload.availableCredit default payload.creditLimit default null,
   daily_purchase_limit: controls.dailyPurchaseLimit default null,
   daily_atm_withdrawal_limit: controls.dailyATMWithdrawalLimit default null,
   international_transactions_enabled: controls.internationalTransactionsEnabled default true,
   online_transactions_enabled: controls.onlineTransactionsEnabled default true,
-  issued_date: payload.issuedDate default null
+      issued_date: payload.issuedDate default null
 }]]>
         </ee:set-payload>
       </ee:message>
+      <ee:variables>
+        <ee:set-variable variableName="cardNumber"><![CDATA[%dw 2.0
+output application/java
+---
+vars.originalPayload.cardNumber]]></ee:set-variable>
+      </ee:variables>
     </ee:transform>
 
     <try doc:name="Try">
@@ -124,10 +153,22 @@ var controls = payload.controls default {}
             :daily_purchase_limit, :daily_atm_withdrawal_limit,
             :international_transactions_enabled, :online_transactions_enabled, :issued_date::date
           )
-          RETURNING *
         ]]></db:sql>
         <db:input-parameters><![CDATA[#[payload]]]></db:input-parameters>
       </db:insert>
+
+      <db:select config-ref="Database_Config" doc:name="Select Inserted Card">
+        <db:sql><![CDATA[
+          SELECT *
+          FROM cards
+          WHERE card_number = :cardNumber
+          ORDER BY created_at DESC
+          LIMIT 1
+        ]]></db:sql>
+        <db:input-parameters><![CDATA[#[{
+          cardNumber: vars.cardNumber
+        }]]]></db:input-parameters>
+      </db:select>
 
       <ee:transform doc:name="Transform Response">
         <ee:message>
@@ -142,7 +183,7 @@ var card = payload[0]
   cardType: card.card_type,
   cardNetwork: card.card_network,
   customerId: card.customer_id as String,
-  accountId: card.account_id as String,
+  accountId: if (card.account_id != null) card.account_id as String else null,
   cardholderName: card.cardholder_name,
   expirationDate: card.expiration_date,
   status: card.status,
@@ -217,7 +258,7 @@ var card = payload[0]
   cardType: card.card_type,
   cardNetwork: card.card_network,
   customerId: card.customer_id as String,
-  accountId: card.account_id as String,
+  accountId: if (card.account_id != null) card.account_id as String else null,
   cardholderName: card.cardholder_name,
   expirationDate: card.expiration_date,
   status: card.status,
@@ -336,10 +377,20 @@ var controls = payload.controls default {}
             issued_date = COALESCE(:issued_date::date, issued_date),
             updated_at = CURRENT_TIMESTAMP
           WHERE id = :cardId::uuid
-          RETURNING *
         ]]></db:sql>
         <db:input-parameters><![CDATA[#[payload]]]></db:input-parameters>
       </db:update>
+
+      <db:select config-ref="Database_Config" doc:name="Select Updated Card">
+        <db:sql><![CDATA[
+          SELECT *
+          FROM cards
+          WHERE id = :cardId::uuid
+        ]]></db:sql>
+        <db:input-parameters><![CDATA[#[{
+          cardId: vars.cardId
+        }]]]></db:input-parameters>
+      </db:select>
 
       <choice doc:name="Update Successful?">
         <when expression="#[sizeOf(payload) > 0]">
@@ -356,7 +407,7 @@ var card = payload[0]
   cardType: card.card_type,
   cardNetwork: card.card_network,
   customerId: card.customer_id as String,
-  accountId: card.account_id as String,
+  accountId: if (card.account_id != null) card.account_id as String else null,
   cardholderName: card.cardholder_name,
   expirationDate: card.expiration_date,
   status: card.status,
