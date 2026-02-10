@@ -74,9 +74,9 @@ output application/json
 output application/java
 ---
 {
-  customerId: attributes.queryParams.customerId default null,
-  cardNumber: attributes.queryParams.cardNumber default null,
-  status: attributes.queryParams.status default null,
+  customerId: attributes.queryParams.customerId default "",
+  cardNumber: attributes.queryParams.cardNumber default "",
+  status: attributes.queryParams.status default "",
   limit: (attributes.queryParams.limit as Number default 100) as String,
   offset: (attributes.queryParams.offset as Number default 0) as String
 }]]></ee:set-payload>

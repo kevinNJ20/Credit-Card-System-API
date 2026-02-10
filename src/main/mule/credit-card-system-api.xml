@@ -12,9 +12,9 @@
           SELECT *
           FROM cards
           WHERE
-            (:customerId::uuid IS NULL OR customer_id = :customerId::uuid)
-            AND (:cardNumber IS NULL OR card_number = :cardNumber)
-            AND (:status IS NULL OR status = :status)
+            (NULLIF(:customerId, '') IS NULL OR customer_id = NULLIF(:customerId, '')::uuid)
+            AND (COALESCE(:cardNumber, '') = '' OR card_number = :cardNumber)
+            AND (COALESCE(:status, '') = '' OR status = :status)
           ORDER BY created_at DESC
           LIMIT :limit::integer OFFSET :offset::integer
         ]]></db:sql>
