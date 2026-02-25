@@ -7,6 +7,7 @@
   <!-- GET /cards - Business Logic Flow -->
   <flow name="get-cards-business-logic" doc:name="get-cards-business-logic">
     <try doc:name="Try">
+      <logger level="INFO" message="#['GET cards - customerId: ' ++ ((payload.customerId default '') as String)]" doc:name="Log request"/>
       <db:select config-ref="Database_Config" doc:name="Select Cards">
         <db:sql><![CDATA[
           SELECT *
@@ -53,10 +54,12 @@ payload map ((card) -> {
         </ee:message>
       </ee:transform>
 
+      <logger level="INFO" message="#['GET cards success - count: ' ++ sizeOf(payload)]" doc:name="Log success"/>
       <set-variable variableName="httpStatus" value="200" doc:name="Set Status 200" />
 
       <error-handler>
         <on-error-propagate type="*" enableNotifications="true" logException="true" doc:name="Error Handler">
+          <logger level="ERROR" message="#['GET cards failed - error: ' ++ (error.description default 'unknown')]" doc:name="Log error"/>
           <ee:transform doc:name="Transform Error">
             <ee:message>
               <ee:set-payload>
